@@ -13,11 +13,8 @@
 #
 set -e
 
-# Get label or exit if no label
-LABEL=`lsblk -n -l -o label $UM_DEVICE` || exit 0
-
 # Replace spaces with underscores, remove special characters in label
-LABEL=`echo "$LABEL" | sed 's/ /_/g; s/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ._-]//g'`
+LABEL=`echo "$UM_LABEL" | sed 's/ /_/g; s/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ._-]//g'`
 
 # Exit if label is empty.
 test -n "$LABEL" || exit 0

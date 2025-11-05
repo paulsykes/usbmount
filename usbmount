@@ -50,7 +50,6 @@ MOUNTOPTIONS=
 FS_MOUNTOPTIONS=
 VERBOSE="no"
 
-BLKID="/sbin/blkid"
 UDEVADM="/bin/udevadm"
 USBMOUNT_CONF="/etc/usbmount/usbmount.conf"
 USBMOUNT_VAR="/var/run/usbmount"
@@ -64,11 +63,6 @@ fi
 if [ "${ENABLED:-1}" -eq 0 ]; then
 	log info "usbmount is disabled, see ${USBMOUNT_CONF}"
 	exit 0
-fi
-
-if [ ! -x "${BLKID}" ]; then
-	log err "cannot execute '${BLKID}'"
-	exit 1
 fi
 
 if [ ! -x "${UDEVADM}" ]; then
@@ -99,12 +93,7 @@ if [ "${1}" = "add" ]; then
 	# a service's context and the env variables have been lost)
 	eval $("${UDEVADM}" info --query=env --export "${DEVNAME}")
 
-	# Grab device information from device
-	#   FIXME: improvement: implement mounting by label (notice that labels
-	#   can contain spaces, which makes things a little bit less comfortable).
-	eval $("${BLKID}" -o export -p -s TYPE -s USAGE -s UUID "${DEVNAME}")
-
-	if [ "${USAGE}" != "filesystem" ] && [ "${USAGE}" != "disklabel" ]; then
+	if [ "${ID_FS_USAGE}" != "filesystem" ] && [ "${ID_FS_USAGE}" != "disklabel" ]; then
 		log info "${DEVNAME} does not contain a filesystem or disklabel"
 		exit 0
 	fi
@@ -113,13 +102,13 @@ if [ "${1}" = "add" ]; then
 	if grep -q -E "^[[:blank:]]*${DEVNAME}" "/etc/fstab"; then
 		log info "executing command: mount ${DEVNAME}"
 		mount "${DEVNAME}" || log err "mount by DEVNAME with ${DEVNAME} wasn't successful; return code ${?}"
-	elif grep -q -E "^[[:blank:]]*UUID=\"?${UUID}\"?" "/etc/fstab"; then
-		log info "executing command: mount -U ${UUID}"
-		mount -U "${UUID}" || log err "mount by UUID with ${UUID} wasn't successful; return code ${?}"
+	elif grep -q -E "^[[:blank:]]*UUID=${ID_FS_UUID}" "/etc/fstab"; then
+		log info "executing command: mount -U ${ID_FS_UUID}"
+		mount -U "${ID_FS_UUID}" || log err "mount by UUID with ${ID_FS_UUID} wasn't successful; return code ${?}"
 	else
-		log debug "${DEVNAME} contains filesystem type ${TYPE}"
+		log debug "${DEVNAME} contains filesystem type ${ID_FS_TYPE}"
 
-		fstype="${TYPE}"
+		fstype="${ID_FS_TYPE}"
 		# Test if the filesystem type is in the list of filesystem
 		# types to mount.
 		if in_list "${fstype}" "${FILESYSTEMS}"; then
@@ -175,11 +164,13 @@ if [ "${1}" = "add" ]; then
 
 				# Run hook scripts; ignore errors.
 				export UM_DEVICE="${DEVNAME}"
+				export UM_UUID="${ID_FS_UUID}"
 				export UM_MOUNTPOINT="${mountpoint}"
 				export UM_FILESYSTEM="${fstype}"
 				export UM_MOUNTOPTIONS="${options}"
 				export UM_VENDOR="${vendor}"
 				export UM_MODEL="${model}"
+				export UM_LABEL="${ID_FS_LABEL}"
 				log info "executing command: run-parts /etc/usbmount/mount.d"
 				run-parts "/etc/usbmount/mount.d" || :
 			else
